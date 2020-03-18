@@ -107,24 +107,38 @@ func enqueueNotifications(notifications []RequestGaurunNotification, option Noti
 func pushNotificationIos(req RequestGaurunNotification) error {
 	LogError.Debug("START push notification for iOS")
 
-	service := NewApnsServiceHttp2(APNSClient)
-
-	token := req.Tokens[0]
-
-	var headers *push.Headers
-	if APNSClient.Token != nil {
-		headers = NewApnsHeadersHttp2WithToken(&req, APNSClient.Token)
-	} else {
-		headers = NewApnsHeadersHttp2(&req)
-	}
-	payload := NewApnsPayloadHttp2(&req)
-
 	stime := time.Now()
-	err := ApnsPushHttp2(token, service, headers, payload)
-
 	etime := time.Now()
 	ptime := etime.Sub(stime).Seconds()
+	token := req.Tokens[0]
 
+	var (
+		service *push.Service
+		headers *push.Headers
+	)
+
+	if req.IsCertificateBased() {
+		s, err := NewApnsCertificateBasedServiceHttp2(req.Option)
+		if err != nil {
+			atomic.AddInt64(&StatGaurun.Ios.PushError, 1)
+			LogPush(req.ID, StatusFailedPush, token, ptime, req, err)
+			return err
+		}
+		service = s
+		headers = NewApnsHeadersHttp2(&req)
+	} else if req.IsTokenBased() {
+		service = NewApnsServiceHttp2(APNSClient)
+		headers = NewApnsHeadersHttp2WithToken(&req, APNSClient.Token)
+	} else {
+		atomic.AddInt64(&StatGaurun.Ios.PushError, 1)
+		err := errors.New("request is not contain required info")
+		LogPush(req.ID, StatusFailedPush, token, ptime, req, err)
+		return err
+	}
+
+	payload := NewApnsPayloadHttp2(&req)
+
+	err := ApnsPushHttp2(token, service, headers, payload)
 	if err != nil {
 		atomic.AddInt64(&StatGaurun.Ios.PushError, 1)
 		LogPush(req.ID, StatusFailedPush, token, ptime, req, err)
