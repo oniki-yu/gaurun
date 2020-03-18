@@ -163,7 +163,7 @@ func NewApnsHeadersHttp2(req *RequestGaurunNotification) *push.Headers {
 	}
 
 	headers := &push.Headers{
-		Topic:    ConfGaurun.Ios.Topic,
+		Topic:    req.Option.Topic,
 		PushType: pushType,
 	}
 
