@@ -2,14 +2,17 @@ package gaurun
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/mercari/gaurun/buford/payload"
@@ -128,6 +131,60 @@ func NewApnsServiceHttp2(apnsClient APNsClient) *push.Service {
 		Client: apnsClient.HTTPClient,
 		Host:   host,
 	}
+}
+
+func NewApnsCertificateBasedServiceHttp2(no NotificationOption) (*push.Service, error) {
+	if client, ok := CertAPNSClients[no]; ok {
+		return NewApnsServiceHttp2(client), nil
+	}
+	// generate prefix
+	var bs = make([]byte, 4)
+	_, err := rand.Read(bs)
+	if err != nil {
+		return nil, err
+	}
+	prefix := hex.EncodeToString(bs)
+
+	// create cert file
+	cert := no.PemCert
+	certPath := fmt.Sprintf("%s_cert.pem", prefix)
+	err = ioutil.WriteFile(certPath, []byte(cert), 0664)
+	defer func() {
+		err = os.Remove(certPath)
+		if err != nil {
+			// TODO:
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	// create key file
+	key := no.PemKey
+	keyPath := fmt.Sprintf("%s_key.pem", prefix)
+	err = ioutil.WriteFile(keyPath, []byte(key), 0664)
+	defer func() {
+		err = os.Remove(keyPath)
+		if err != nil {
+			// TODO:
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	// generate service
+	passwordNotRequired := ""
+	client2, err := NewApnsClientHttp2(
+		certPath,
+		keyPath,
+		passwordNotRequired,
+	)
+	if err != nil {
+		return nil, err
+	}
+	CertAPNSClients[no] = client2
+	return NewApnsServiceHttp2(client2), nil
 }
 
 func NewApnsPayloadHttp2(req *RequestGaurunNotification) map[string]interface{} {
