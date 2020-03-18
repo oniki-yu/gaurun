@@ -12,12 +12,12 @@ import (
 
 	"github.com/mercari/gaurun/buford/push"
 	"github.com/mercari/gaurun/gcm"
-
 	"go.uber.org/zap"
 )
 
 type RequestGaurun struct {
 	Notifications []RequestGaurunNotification `json:"notifications"`
+	Option        NotificationOption          `json:"option,omitempty"`
 }
 
 type RequestGaurunNotification struct {
@@ -43,7 +43,8 @@ type RequestGaurunNotification struct {
 	Retry            int          `json:"retry,omitempty"`
 	Extend           []ExtendJSON `json:"extend,omitempty"`
 	// meta
-	ID uint64 `json:"seq_id,omitempty"`
+	ID     uint64             `json:"seq_id,omitempty"`
+	Option NotificationOption `json:"option,omitempty"`
 }
 
 type ExtendJSON struct {
@@ -58,6 +59,19 @@ type ResponseGaurun struct {
 type CertificatePem struct {
 	Cert []byte
 	Key  []byte
+}
+type NotificationOption struct {
+	Topic   string `json:"topic"`
+	PemCert string `json:"pem_cert"`
+	PemKey  string `json:"pem_key"`
+}
+
+func (rgn *RequestGaurunNotification) IsCertificateBased() bool {
+	return rgn.Option.PemCert != "" && rgn.Option.PemKey != "" && rgn.Option.Topic != ""
+}
+
+func (rgn *RequestGaurunNotification) IsTokenBased() bool {
+	return rgn.Option.Topic != ""
 }
 
 func enqueueNotifications(notifications []RequestGaurunNotification) {
