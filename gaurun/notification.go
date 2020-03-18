@@ -74,7 +74,7 @@ func (rgn *RequestGaurunNotification) IsTokenBased() bool {
 	return rgn.Option.Topic != ""
 }
 
-func enqueueNotifications(notifications []RequestGaurunNotification) {
+func enqueueNotifications(notifications []RequestGaurunNotification, option NotificationOption) {
 	for _, notification := range notifications {
 		err := validateNotification(&notification)
 		if err != nil {
@@ -93,6 +93,7 @@ func enqueueNotifications(notifications []RequestGaurunNotification) {
 			notification2 := notification
 			notification2.Tokens = []string{token}
 			notification2.ID = numberingPush()
+			notification2.Option = option
 			if enabledPush {
 				LogPush(notification2.ID, StatusAcceptedPush, token, 0, notification2, nil)
 				QueueNotification <- notification2
@@ -270,7 +271,7 @@ func PushNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	LogError.Debug("enqueue notification")
-	go enqueueNotifications(reqGaurun.Notifications)
+	go enqueueNotifications(reqGaurun.Notifications, reqGaurun.Option)
 
 	LogError.Debug("response to client")
 	sendResponse(w, "ok", http.StatusOK)
